@@ -2,11 +2,11 @@
 # 
 # Perl class for dealing with Palm DateBook databases. 
 #
-#	Copyright (C) 1999, 2000, Andrew Arensburger.
+#	Copyright (C) 1999-2001, Andrew Arensburger.
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
 #
-# $Id: Datebook.pm,v 1.13 2000/09/24 16:25:43 arensb Exp $
+# $Id: Datebook.pm,v 1.19 2002/11/07 14:11:51 arensb Exp $
 
 use strict;
 package Palm::Datebook;
@@ -15,8 +15,10 @@ use Palm::StdAppInfo();
 
 use vars qw( $VERSION @ISA );
 
-$VERSION = sprintf "%d.%03d", '$Revision: 1.13 $ ' =~ m{(\d+)\.(\d+)};
-@ISA = qw( Palm::Raw Palm::StdAppInfo );
+# One liner, to allow MakeMaker to work.
+$VERSION = do { my @r = (q$Revision: 1.19 $ =~ /\d+/g); sprintf "%d."."%02d" x $#r, @r };
+
+@ISA = qw( Palm::StdAppInfo Palm::Raw );
 
 
 =head1 NAME
@@ -51,8 +53,13 @@ This is a scalar, the raw data of the sort block.
     $record->{month}
     $record->{year}
 
-The day, month and year of the event. For repeating events, this is
-the first date at which the event occurs.
+The day, month and year of the event. The day and month start at 1
+(I<i.e.>, for January, C<$record-E<gt>{month}> is set to 1). The year
+is a four-digit number (for dates in 2001, C<$record-E<gt>{year}> is
+"2001").
+
+For repeating events, these fields specify the first date at which the
+event occurs.
 
     $record->{start_hour}
     $record->{start_minute}
@@ -108,9 +115,8 @@ For weekly events, the following fields are defined:
     @{$record->{repeat}{repeat_days}}
 
 This is an array of 7 elements; each element is true iff the event
-occurs on the corresponding day. I don't know whether the array begins
-with Sunday, or with the start-of-week day as defined in the
-preferences.
+occurs on the corresponding day. Element 0 is Sunday, element 1 is
+Monday, and so forth.
 
     $record->{repeat}{start_of_week}
 
@@ -126,14 +132,15 @@ For "monthly by day" events, the following fields are defined:
 
     $record->{repeat}{weeknum}
 
-The number of the week on which the event occurs. A value of 5 means
-that the event occurs on the last week of the month.
+The number of the week on which the event occurs. 0 means the first
+week of the month, 1 means the second week of the month, and so forth.
+A value of 5 means that the event occurs on the last week of the
+month.
 
     $record->{repeat}{daynum}
 
-An integer, the day of the week on which the event occurs. Again, I
-don't know whether 0 means Sunday, or the start-of-week day as defined
-in the preferences.
+An integer, the day of the week on which the event occurs. 0 means
+Sunday, 1 means Monday, and so forth.
 
 =item 4
 
@@ -164,8 +171,8 @@ The last day, month and year on which the event occurs.
 
     @{$record->{exceptions}}
     $day   = $record->{exceptions}[N][0]
-    $month = $record->{exceptions}[N][0]
-    $year  = $record->{exceptions}[N][0]
+    $month = $record->{exceptions}[N][1]
+    $year  = $record->{exceptions}[N][2]
 
 If there are any exceptions to a repeating event, I<e.g.> a weekly
 meeting that was cancelled one time, then the
@@ -250,9 +257,11 @@ sub new_Record
 
 	# By default, the new record is an untimed event that occurs
 	# today.
-	($retval->{day},
-	 $retval->{month},
-	 $retval->{year}) = (localtime(time))[3, 4, 5];
+	my @now = localtime(time);
+
+	$retval->{day}		= $now[3];
+	$retval->{month}	= $now[4] + 1;
+	$retval->{year}		= $now[5] + 1900;
 
 	$retval->{start_hour} =
 	$retval->{start_minute} =
@@ -559,8 +568,8 @@ sub PackRecord
 	if (defined($record->{repeat}) && %{$record->{repeat}})
 	{
 		my $type;		# Repeat type
-		my $endDate;
-		my $repeatOn;
+		my $endDate = 0xffff;	# No end date defined by default
+		my $repeatOn = 0;
 		my $repeatStartOfWeek = 0;
 
 		$flags |= 0x2000;
@@ -574,9 +583,6 @@ sub PackRecord
 					& 0x000f) << 5) |
 				((($record->{repeat}{end_year} - 1904)
 					& 0x007f) << 9);
-		} else {
-			# No end date defined
-			$endDate = 0xffff;
 		}
 
 		if ($record->{repeat}{type} == 2)

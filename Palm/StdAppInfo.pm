@@ -6,7 +6,7 @@
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
 #
-# $Id: StdAppInfo.pm,v 1.11 2000/09/24 16:26:11 arensb Exp $
+# $Id: StdAppInfo.pm,v 1.19 2002/11/07 14:27:28 arensb Exp $
 
 use strict;
 package Palm::StdAppInfo;
@@ -16,12 +16,14 @@ use Palm::Raw();
 use vars qw( $VERSION @ISA $error );
 	# $error acts like $! in that it reports the error that occurred
 
-$VERSION = sprintf "%d.%03d", '$Revision: 1.11 $ ' =~ m{(\d+)\.(\d+)};
+# One liner, to allow MakeMaker to work.
+$VERSION = do { my @r = (q$Revision: 1.19 $ =~ /\d+/g); sprintf "%d."."%02d" x $#r, @r };
+
 @ISA = qw( Palm::Raw );
 
 =head1 NAME
 
-Palm::StdAppInfo - Handles standard AppInfo block
+Palm::StdAppInfo - Handles standard AppInfo block (categories)
 
 =head1 SYNOPSIS
 
@@ -31,6 +33,8 @@ Usually:
     use Palm::StdAppInfo();		# Note the parentheses
 
     @ISA = qw( Palm::StdAppInfo );
+
+    use constant APPINFO_PADDING = 1;
 
     sub ParseAppInfoBlock {
 	my $self = shift;
@@ -60,7 +64,7 @@ Or as a standalone C<PDB> helper class:
 Many Palm applications use a common format for keeping track of categories.
 The C<Palm::StdAppInfo> class deals with this common format:
 
-	$pdb = new PDB;
+	$pdb = new Palm::PDB;
 	$pdb->Load("myfile.pdb");
 
 	@categories   = @{$pdb->{appinfo}{categories}};
@@ -101,20 +105,49 @@ category list, you should parse this field to get any data that
 follows the category list; you should also make sure that this field
 is initialized before you call C<&Palm::StdAppInfo::pack_AppInfo>.
 
-=cut
+=head2 APPINFO_PADDING
+
+Normally, the AppInfo block includes a byte of padding at the end, to
+bring its length to an even number. However, some databases use this
+byte for data.
+
+If your database uses the padding byte for data, then your
+C<&ParseAppInfoBlock> method (see L<"SYNOPSIS">) should call
+C<&parse_StdAppInfo> with a true $nopadding argument.
+
+If, for whatever reason, you wish to inherit
+C<&StdAppInfo::ParseAppInfoBlock>, then add
+
+    use constant APPINFO_PADDING => 0;
+
+to your handler package, to tell it that the padding byte is really
+data.
 
 =head1 FUNCTIONS
 
 =cut
 #'
 
+use constant APPINFO_PADDING => 1;	# Whether to add the padding byte at
+					# the end of the AppInfo block.
+			# Note that this might be considered a hack:
+			# this relies on the fact that 'use constant'
+			# defines a function with no arguments; that
+			# therefore this can be called as an instance
+			# method, with full inheritance. That is, if
+			# the handler class doesn't define it, Perl
+			# will find the constant in the parent. If
+			# this ever changes, the code below that uses
+			# $self->APPINFO_PADDING will need to be
+			# changed.
 use constant numCategories => 16;	# Number of categories in AppInfo block
 use constant categoryLength => 16;	# Length of category names
 use constant stdAppInfoSize =>		# Length of a standard AppInfo block
 		2 +	
 		(categoryLength * numCategories) +
 		numCategories +
-		1 + 1;
+		1 + 1;			# The padding byte at the end may
+					# be omitted
 
 sub import
 {
@@ -219,7 +252,7 @@ sub new
 
 =head2 parse_StdAppInfo
 
-    $len = &Palm::StdAppInfo::parse_StdAppInfo(\%appinfo, $data);
+    $len = &Palm::StdAppInfo::parse_StdAppInfo(\%appinfo, $data, $nopadding);
 
 This function (this is not a method) is intended to be called from
 within a PDB helper class's C<ParseAppInfoBlock> method.
@@ -227,6 +260,12 @@ within a PDB helper class's C<ParseAppInfoBlock> method.
 C<parse_StdAppInfo()> parses a standard AppInfo block from the raw
 data C<$data> and fills in the fields in C<%appinfo>. It returns the
 number of bytes parsed.
+
+C<$nopadding> is optional, and defaults to false. Normally, the
+AppInfo block includes a padding byte at the end. If C<$nopadding> is
+true, then C<&parse_StdAppInfo> assumes that the padding byte is
+application data, and includes it in C<$appinfo{'other'}>, so that the
+caller can parse it.
 
 =cut
 #'
@@ -241,11 +280,17 @@ sub parse_StdAppInfo
 {
 	my $appinfo = shift;	# A reference to hash, to fill in
 	my $data = shift;	# Raw data to read
+	my $nopadding = shift;	# Optional: no padding byte at end
 	my $unpackstr;		# First argument to unpack()
 	my $renamed;		# Bitmap of renamed categories
 	my @labels;		# Array of category labels
 	my @uniqueIDs;		# Array of category IDs
 	my $lastUniqueID;	# Not sure what this is
+
+	if (!defined($nopadding))
+	{
+		$nopadding = 0;
+	}
 
 	# Make sure $appinfo contains all of the requisite fields
 	&seed_StdAppInfo($appinfo);
@@ -289,9 +334,10 @@ sub parse_StdAppInfo
 	# There might be other stuff in the AppInfo block other than
 	# the standard categories. Put everything else in
 	# $appinfo->{other}.
-	$appinfo->{other} = substr($data, stdAppInfoSize);
+	$appinfo->{other} = substr($data,
+				   stdAppInfoSize - ($nopadding ? 1 : 0));
 
-	return stdAppInfoSize;
+	return ($nopadding ? stdAppInfoSize - 1 : stdAppInfoSize);
 }
 
 =head2 ParseAppInfoBlock
@@ -302,7 +348,7 @@ sub parse_StdAppInfo
 If your application's AppInfo block contains standard category support
 and nothing else, you may choose to just inherit this method instead
 of writing your own C<ParseAppInfoBlock> method. Otherwise, see the
-example in the L<"SYNOPSIS">.
+example in L<"SYNOPSIS">.
 
 =cut
 #'
@@ -314,7 +360,7 @@ sub ParseAppInfoBlock
 
 	my $appinfo = {};
 
-	&parse_StdAppInfo($appinfo, $data);
+	&parse_StdAppInfo($appinfo, $data, $self->APPINFO_PADDING);
 	return $appinfo;
 }
 
@@ -333,6 +379,11 @@ C<PackAppInfoBlock> method, you should make sure that
 C<$appinfo{other}> is properly initialized before you call
 C<&Palm::StdAppInfo::pack_StdAppInfo>.
 
+C<$nopadding> is optional, and defaults to false. Normally, the
+AppInfo block includes a byte of padding at the end. If C<$nopadding>
+is true, then C<&pack_StdAppInfo> doesn't include this byte of
+padding, so that the application can use it.
+
 =cut
 #'
 
@@ -345,8 +396,11 @@ C<&Palm::StdAppInfo::pack_StdAppInfo>.
 sub pack_StdAppInfo
 {
 	my $appinfo = shift;
+	my $nopadding = shift;
 	my $retval;
 	my $i;
+
+	$nopadding = 0 if !defined($nopadding);
 
 	# Create the bitfield of renamed categories
 	my $renamed;
@@ -378,8 +432,7 @@ sub pack_StdAppInfo
 			$name = $appinfo->{categories}[$i]{name};
 		}
 
-		$retval .= pack("a" . categoryLength,
-			$appinfo->{categories}[$i]{name});
+		$retval .= pack("a" . categoryLength, $name);
 	}
 
 	# Ditto for category IDs
@@ -413,7 +466,7 @@ sub PackAppInfoBlock
 {
 	my $self = shift;
 
-	return &pack_StdAppInfo($self->{appinfo});
+	return &pack_StdAppInfo($self->{appinfo}, $self->{APPINFO_PADDING});
 }
 
 =head2 addCategory
@@ -439,6 +492,8 @@ message.
 
 =cut
 #'
+# XXX - When choosing a new category ID, should pick them from the
+# range 128-255.
 sub addCategory
 {
 	my $self = shift;	# PDB
@@ -517,7 +572,9 @@ sub deleteCategory
 
 		# Erase this category
 		$_->{name} = "";
-		$_->{renamed} = 1;
+
+		# You'd think it would make sense to set the "renamed"
+		# field here, but the Palm doesn't do that.
 	}
 }
 
@@ -533,6 +590,8 @@ an error message.
 
 =cut
 #'
+# XXX - This doesn't behave the same way as the Palm: the Palm also
+# picks a new category ID.
 sub renameCategory
 {
 	my $self = shift;

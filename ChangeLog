@@ -1,3 +1,126 @@
+2002-11-07  Andrew Arensburger  <arensb@nerafo.umd.edu>
+
+	* Makefile.PL: Updated version number.
+
+2002-11-07  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* Palm/StdAppInfo.pm (API) Now supports databases where the last
+	byte of the AppInfo block is data instead of padding.
+	Backwards-compatible.
+
+	* Palm/ToDo.pm: Rearranged @ISA, so that it'll get the right
+	&ParseAppInfoBlock.
+
+	* Palm/Memo.pm: Rearranged @ISA, so that it'll get the right
+	&ParseAppInfoBlock.
+
+	* Palm/Mail.pm: Rearranged @ISA, so that it'll get the right
+	&ParseAppInfoBlock.
+
+	* Palm/Datebook.pm: Rearranged @ISA, so that it'll get the right
+	&ParseAppInfoBlock.
+
+	* Palm/Address.pm: Rearranged @ISA, so that it'll get the right
+	&ParseAppInfoBlock.
+
+2002-05-09  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* Palm/Address.pm: Again, more sanity-checking and a little less
+	code duplication.
+
+	* Palm/Address.pm: More sanity checks, and a somewhat more elegant
+	way of doing things
+	(iterate over field names, rather than duplicating code a bunch of
+	times).
+
+	* Palm/StdAppInfo.pm (bug fix) Used to do some sanity-checking,
+	then ignored it. We now pay attention to our own sanity checks.
+
+2002-04-09  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* README: Added Keni as a contributor.
+
+	* util/pdbdump: Applied Keni's patch: array-handling for parsed
+	records (e.g., Datebook exceptions).
+	
+2002-03-23  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* Palm/Mail.pm: Added extra sanity checks.
+
+2002-02-15  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* Palm/PDB.pm (bug fix) Strip everything after the first NUL, not
+	just trailing NULs. Patch submitted by Don Park
+	<donpdonp2@yahoo.com>
+
+2002-02-08  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	- Version 1.2.5 released.
+	
+	* MANIFEST: Added add-memo to distribution.
+
+	* util/add-memo (added): Added first draft of add-memo, to add a
+	memo to an existing MemoDB.pdb.
+
+2002-02-01  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* Palm/PDB.pm: Comment used to refer to a doc file in ColdSync
+	that no longer exists. Fixed.
+
+2002-01-26  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* util/pdbdump, Palm/ToDo.pm, Palm/StdAppInfo.pm, Palm/Raw.pm,
+	Palm/PQA.pm, Palm/PDB.pm, Palm/Memo.pm, Palm/Mail.pm,
+	Palm/Datebook.pm, Palm/Address.pm, Makefile.PL: Rewrote version
+	number in CPAN-friendly format.
+
+2001-06-05  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* Palm/StdAppInfo.pm: Made addCategory, deleteCategory,
+	renameCategory behave a bit more like the Palm, even when it's
+	brain-damaged.
+
+2001-06-02  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* Palm/StdAppInfo.pm: Fixed typo in POD.
+
+	* Palm/Datebook.pm: Fixed typo in POD.
+
+2001-04-04  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* Palm/StdAppInfo.pm: Fixed typo.
+
+2001-03-30  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* Palm/Datebook.pm: Clarified whether date numbers start at 0 or
+	1.
+	(bug fix): Fixed year conversion.
+	(bug fix): Fixed use of undefined value.
+
+2001-02-24  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* Palm/PDB.pm: In &new, initialize 'baktime' to -$EPOCH_1904, that
+	being the Palm's epoch.
+
+	* FAQ: Added pointers to other sources of information about
+	HotSync .dat files.
+
+	* Palm/Datebook.pm: Clarified documentation.
+
+2001-02-20  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* MANIFEST: Added FAQ to distribution.
+
+	* FAQ (Added).
+
+	* README: Added contributor.
+
+	* util/pdbdump (bug fix): the two NULs are optional. Fixed typo.
+
+	* Palm/StdAppInfo.pm: Added a "to do" comment.
+
+	* Makefile.PL: Incremented version number.
+
 2000-11-09  Andrew Arensburger  <arensb@baa.ooblick.com>
 
 	- Version 1.2.4 released.

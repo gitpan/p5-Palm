@@ -6,7 +6,7 @@
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
 #
-# $Id: PDB.pm,v 1.19 2000/11/09 15:32:33 arensb Exp $
+# $Id: PDB.pm,v 1.29 2002/11/03 16:43:16 azummo Exp $
 
 # A Palm database file (either .pdb or .prc) has the following overall
 # structure:
@@ -17,13 +17,15 @@
 #	Optional AppInfo block
 #	Optional sort block
 #	Records/resources
-# See "pdb.info" (from the ColdSync documentation) for details.
+# See http://www.palmos.com/dev/tech/docs/fileformats.zip
+# for details.
 
 use strict;
 package Palm::PDB;
 use vars qw( $VERSION %PDBHandlers %PRCHandlers );
 
-$VERSION = sprintf "%d.%03d", '$Revision: 1.19 $ ' =~ m{(\d+)\.(\d+)};
+# One liner, to allow MakeMaker to work.
+$VERSION = do { my @r = (q$Revision: 1.29 $ =~ /\d+/g); sprintf "%d."."%02d" x $#r, @r };
 
 =head1 NAME
 
@@ -90,33 +92,29 @@ its elements have special significance. See L<Load()|/Load>.
 
 sub new
 {
-	my $class = shift;
+	my $class	= shift;
+	my $params	= shift;
+
 	my $self = {};
 
+
 	# Initialize the PDB. These values are just defaults, of course.
-	$self->{name} = "";
-	$self->{attributes} = {
-		resource	=> 0,
-		"read-only"	=> 0,
-		"AppInfo dirty"	=> 0,
-		backup		=> 0,
-		"OK newer"	=> 0,
-		reset		=> 0,
-		open		=> 0,
-		launchable	=> 0,	# For PQAs
-	};
-	$self->{version} = 0;
+	$self->{'name'} 	= $params->{'name'}		|| "";
+	$self->{'attributes'}	= $params->{'attributes'} 	|| {};
+	$self->{'version'}	= $params->{'version'} 		|| 0;
 
 	my $now = time;
-	$self->{ctime} = $now;
-	$self->{mtime} = $now;
-	$self->{baktime} = 0;
 
-	$self->{modnum} = 0;
-	$self->{type} = "\0\0\0\0";
-	$self->{creator} = "\0\0\0\0";
-	$self->{uniqueIDseed} = 0;
-	$self->{"2NULs"} = "\0\0";
+	$self->{'ctime'} 	= $params->{'ctime'}		|| $now;
+	$self->{'mtime'} 	= $params->{'mtime'}		|| $now;
+	$self->{'baktime'} 	= $params->{'baktime'}		|| -$EPOCH_1904;
+
+	$self->{'modnum'}	= $params->{'modnum'}		|| 0;
+	$self->{'type'}		= $params->{'type'}		|| "\0\0\0\0";
+	$self->{'creator'} 	= $params->{'creator'}		|| "\0\0\0\0";
+	$self->{'uniqueIDseed'} = $params->{'uniqueIDseed'}	|| 0;
+
+	$self->{"2NULs"}	= "\0\0";
 
 	bless $self, $class;
 	return $self;
@@ -323,26 +321,36 @@ After Load() returns, $pdb may contain the following fields:
 
 The name of the database.
 
-=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"resource"Z<>}
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"ResDB"Z<>}
 
-=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"read-only"Z<>}
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"ReadOnly"Z<>}
 
-=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"AppInfo dirty"Z<>}
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"AppInfoDirty"Z<>}
 
-=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"backup"Z<>}
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"Backup"Z<>}
 
-=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"OK newer"Z<>}
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"OKToInstallNewer"Z<>}
 
-=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"reset"Z<>}
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"ResetAfterInstall"Z<>}
 
-=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"open"Z<>}
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"CopyPrevention"Z<>}
 
-=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"launchable"Z<>}
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"Stream"Z<>}
+
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"Hidden"Z<>}
+
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"LaunchableData"Z<>}
+
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"Recyclable"Z<>}
+
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"Bundle"Z<>}
+
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"Open"Z<>}
 
 These are the attribute flags from the database header. Each is true
 iff the corresponding flag is set.
 
-The "launchable" attribute is set on PQAs.
+The "LaunchableData" attribute is set on PQAs.
 
 =item $pdb-E<gt>{Z<>"version"Z<>}
 
@@ -450,15 +458,33 @@ sub Load
 	$uniqueIDseed) =
 		unpack "a32 n n N N N N N N a4 a4 N", $buf;
 
-	($self->{name} = $name) =~ s/\0*$//;
+	($self->{name} = $name) =~ s/\0.*$//;
 	$self->{attributes}{resource} = 1 if $attributes & 0x0001;
 	$self->{attributes}{"read-only"} = 1 if $attributes & 0x0002;
 	$self->{attributes}{"AppInfo dirty"} = 1 if $attributes & 0x0004;
 	$self->{attributes}{backup} = 1 if $attributes & 0x0008;
 	$self->{attributes}{"OK newer"} = 1 if $attributes & 0x0010;
 	$self->{attributes}{reset} = 1 if $attributes & 0x0020;
-	$self->{attributes}{open} = 1 if $attributes & 0x0040;
+	$self->{attributes}{open} = 1 if $attributes & 0x8000;
 	$self->{attributes}{launchable} = 1 if $attributes & 0x0200;
+
+	# Attribute names as of PalmOS 5.0 ( see /Core/System/DataMgr.h )
+
+	$self->{'attributes'}{'ResDB'}			= 1 if $attributes & 0x0001; 
+	$self->{'attributes'}{'ReadOnly'}		= 1 if $attributes & 0x0002; 
+	$self->{'attributes'}{'AppInfoDirty'}		= 1 if $attributes & 0x0004; 
+	$self->{'attributes'}{'Backup'}			= 1 if $attributes & 0x0008; 
+	$self->{'attributes'}{'OKToInstallNewer'}	= 1 if $attributes & 0x0010; 
+	$self->{'attributes'}{'ResetAfterInstall'}	= 1 if $attributes & 0x0020; 
+	$self->{'attributes'}{'CopyPrevention'}		= 1 if $attributes & 0x0040; 
+	$self->{'attributes'}{'Stream'}			= 1 if $attributes & 0x0080; 
+	$self->{'attributes'}{'Hidden'}			= 1 if $attributes & 0x0100; 
+	$self->{'attributes'}{'LaunchableData'}		= 1 if $attributes & 0x0200; 
+	$self->{'attributes'}{'Recyclable'}		= 1 if $attributes & 0x0400; 
+	$self->{'attributes'}{'Bundle'}			= 1 if $attributes & 0x0800; 
+	$self->{'attributes'}{'Open'}			= 1 if $attributes & 0x8000; 
+
+
 	$self->{version} = $version;
 	$self->{ctime} = $ctime - $EPOCH_1904;
 	$self->{mtime} = $mtime - $EPOCH_1904;
@@ -482,7 +508,7 @@ sub Load
 	# and finally for one that deals with anything.
 
 	my $handler;
-	if ($self->{attributes}{resource})
+	if ($self->{attributes}{resource} || $self->{'attributes'}{'ResDB'})
 	{
 		# Look among resource handlers
 		$handler = $PRCHandlers{$self->{creator}}{$self->{type}} ||
@@ -517,7 +543,7 @@ sub Load
 	$self->{_numrecs} = $numrecs;
 
 	# Read the index itself
-	if ($self->{attributes}{resource})
+	if ($self->{attributes}{resource} || $self->{'attributes'}{'ResDB'})
 	{
 		&_load_rsrc_index($self, \*PDB);
 	} else {
@@ -545,7 +571,7 @@ sub Load
 	}
 
 	# Read record/resource list
-	if ($self->{attributes}{resource})
+	if ($self->{attributes}{resource} || $self->{'attributes'}{'ResDB'})
 	{
 		&_load_resources($self, \*PDB);
 	} else {
@@ -570,7 +596,7 @@ sub _load_rec_index
 	my $pdb = shift;
 	my $fh = shift;		# Input file handle
 	my $i;
-my $lastoffset = 0;
+	my $lastoffset = 0;
 
 	# Read each record index entry in turn
 	for ($i = 0; $i < $pdb->{_numrecs}; $i++)
@@ -590,20 +616,31 @@ my $lastoffset = 0;
 		# bytes, but it's really a double word (long) value.
 
 		($offset, $attributes, @id) = unpack "N C C3", $buf;
-if ($offset == $lastoffset)
-{
-print STDERR "Record $i has same offset as previous one: $offset\n";
-}
-$lastoffset = $offset;
+
+		if ($offset == $lastoffset)
+		{
+			print STDERR "Record $i has same offset as previous one: $offset\n";
+		}
+
+		$lastoffset = $offset;
 
 		$entry->{offset} = $offset;
+
 		$entry->{attributes}{expunged} = 1 if $attributes & 0x80;
 		$entry->{attributes}{dirty} = 1 if $attributes & 0x40;
 		$entry->{attributes}{deleted} = 1 if $attributes & 0x20;
 		$entry->{attributes}{private} = 1 if $attributes & 0x10;
-		$entry->{id} = ($id[0] << 16) |
-				($id[1] << 8) |
-				$id[2];
+
+		# Attribute names as of PalmOS 5.0 ( see /Core/System/DataMgr.h )
+
+		$entry->{'attributes'}{'Delete'}	= 1 if $attributes & 0x80;
+		$entry->{'attributes'}{'Dirty'}		= 1 if $attributes & 0x40;
+		$entry->{'attributes'}{'Busy'}		= 1 if $attributes & 0x20;
+		$entry->{'attributes'}{'Secret'}	= 1 if $attributes & 0x10;
+
+		$entry->{id} =	($id[0] << 16) |
+				($id[1] << 8)  |
+				 $id[2];
 
 		# The lower 4 bits of the attributes field are
 		# overloaded: If the record has been deleted and/or
@@ -941,7 +978,7 @@ sub Write
 	my $index_len;
 
 	# Get records or resources
-	if ($self->{attributes}{resource})
+	if ($self->{attributes}{resource} || $self->{'attributes'}{'ResDB'})
 	{
 		# Resource database
 		my $resource;
@@ -995,6 +1032,11 @@ sub Write
 			$attributes |= 0x10
 				if $record->{attributes}{private};
 
+			$attributes |= 0x80 if $record->{'attributes'}{'Delete'};
+			$attributes |= 0x40 if $record->{'attributes'}{'Dirty'};
+			$attributes |= 0x20 if $record->{'attributes'}{'Busy'};
+			$attributes |= 0x10 if $record->{'attributes'}{'Secret'};
+
 			$id = $record->{id};
 
 			$data = $self->PackRecord($record);
@@ -1007,7 +1049,7 @@ sub Write
 	}
 
 	my $header;
-	my $attributes;
+	my $attributes = 0x0000;
 	my $appinfo_offset;
 	my $sort_offset;
 
@@ -1019,7 +1061,22 @@ sub Write
 		($self->{attributes}{backup}	? 0x0008 : 0) |
 		($self->{attributes}{"OK newer"}	? 0x0010 : 0) |
 		($self->{attributes}{reset}		? 0x0020 : 0) |
-		($self->{attributes}{open}		? 0x0040 : 0);
+		($self->{attributes}{open}		? 0x8000 : 0);
+
+	$attributes |= 0x0001 if $self->{'attributes'}{'ResDB'};
+	$attributes |= 0x0002 if $self->{'attributes'}{'ReadOnly'};
+	$attributes |= 0x0004 if $self->{'attributes'}{'AppInfoDirty'};
+	$attributes |= 0x0008 if $self->{'attributes'}{'Backup'};
+	$attributes |= 0x0010 if $self->{'attributes'}{'OKToInstallNewer'};
+	$attributes |= 0x0020 if $self->{'attributes'}{'ResetAfterInstall'};
+	$attributes |= 0x0040 if $self->{'attributes'}{'CopyPrevention'};
+	$attributes |= 0x0080 if $self->{'attributes'}{'Stream'};
+	$attributes |= 0x0100 if $self->{'attributes'}{'Hidden'};
+	$attributes |= 0x0200 if $self->{'attributes'}{'LaunchableData'};
+	$attributes |= 0x0400 if $self->{'attributes'}{'Recyclable'};
+	$attributes |= 0x0800 if $self->{'attributes'}{'Bundle'};
+	$attributes |= 0x8000 if $self->{'attributes'}{'Open'};	
+
 
 	# Calculate AppInfo block offset
 	if ((!defined($appinfo_block)) || ($appinfo_block eq ""))
@@ -1087,7 +1144,7 @@ sub Write
 		$rec_offset = $HeaderLen + $index_len + 2;
 	}
 
-	if ($self->{attributes}{resource})
+	if ($self->{attributes}{resource} || $self->{'attributes'}{'ResDB'})
 	{
 		# Resource database
 		# Record database
@@ -1161,7 +1218,7 @@ sub Write
 	{
 		my $data;
 
-		if ($self->{attributes}{resource})
+		if ($self->{attributes}{resource} || $self->{'attributes'}{'ResDB'})
 		{
 			# Resource database
 			my $type;
@@ -1187,15 +1244,11 @@ sub Write
 
 Creates a new record, with the bare minimum needed:
 
-	$record->{category}
-	$record->{attributes}{expunged}
-	$record->{attributes}{dirty}
-	$record->{attributes}{deleted}
-	$record->{attributes}{private}
-	$record->{attributes}{archive}
-	$record->{id}
+	$record->{'category'}
+	$record->{'attributes'}{'Dirty'}
+	$record->{'id'}
 
-The ``dirty'' attribute is originally set, since this function will
+The ``Dirty'' attribute is originally set, since this function will
 usually be called to create records to be added to a database.
 
 C<new_Record> does B<not> add the new record to a PDB. For that,
@@ -1213,15 +1266,16 @@ sub new_Record
 	my $retval = {};
 
 	# Initialize the record
-	$retval->{category} = 0;	# Unfiled, by convention
-	$retval->{attributes} = {
-		expunged	=> 0,
+	$retval->{'category'} = 0;	# Unfiled, by convention
+	$retval->{'attributes'} = {
+#		expunged	=> 0,
 		dirty		=> 1,	# Note: originally dirty
-		deleted		=> 0,
-		private		=> 0,
-		archive         => 0,
+		'Dirty'		=> 1,
+#		deleted		=> 0,
+#		private		=> 0,
+#		archive         => 0,
 	};
-	$retval->{id} = 0;		# Initially, no record ID
+	$retval->{'id'} = 0;		# Initially, no record ID
 
 	return $retval;
 }

@@ -6,7 +6,7 @@
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
 #
-# $Id: Memo.pm,v 1.10 2000/09/24 16:25:56 arensb Exp $
+# $Id: Memo.pm,v 1.13 2002/11/07 14:12:05 arensb Exp $
 
 use strict;
 package Palm::Memo;
@@ -14,8 +14,10 @@ use Palm::Raw();
 use Palm::StdAppInfo();
 use vars qw( $VERSION @ISA );
 
-$VERSION = sprintf "%d.%03d", '$Revision: 1.10 $ ' =~ m{(\d+)\.(\d+)};
-@ISA = qw( Palm::Raw Palm::StdAppInfo );
+# One liner, to allow MakeMaker to work.
+$VERSION = do { my @r = (q$Revision: 1.13 $ =~ /\d+/g); sprintf "%d."."%02d" x $#r, @r };
+
+@ISA = qw( Palm::StdAppInfo Palm::Raw );
 
 =head1 NAME
 

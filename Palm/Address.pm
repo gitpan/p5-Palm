@@ -6,7 +6,7 @@
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
 #
-# $Id: Address.pm,v 1.13 2000/09/24 16:25:33 arensb Exp $
+# $Id: Address.pm,v 1.19 2002/11/07 14:11:42 arensb Exp $
 
 use strict;
 package Palm::Address;
@@ -14,17 +14,20 @@ use Palm::Raw();
 use Palm::StdAppInfo();
 
 use vars qw( $VERSION @ISA
-	$numFieldLabels $addrLabelLength @phoneLabels @countries );
+	$numFieldLabels $addrLabelLength @phoneLabels @countries
+	%fieldMapBits );
 
-$VERSION = sprintf "%d.%03d", '$Revision: 1.13 $ ' =~ m{(\d+)\.(\d+)};
-@ISA = qw( Palm::Raw Palm::StdAppInfo );
+# One liner, to allow MakeMaker to work.
+$VERSION = do { my @r = (q$Revision: 1.19 $ =~ /\d+/g); sprintf "%d."."%02d" x $#r, @r };
+
+@ISA = qw( Palm::StdAppInfo Palm::Raw );
 
 # AddressDB records are quite flexible and customizable, and therefore
 # a pain in the ass to deal with correctly.
 
 =head1 NAME
 
-Palm::Address - Handler for Palm AddressBook databases.
+Palm::Address - Handler for Palm AddressBook databases
 
 =head1 SYNOPSIS
 
@@ -189,6 +192,32 @@ $numFieldLabels = 22;
 	"Switzerland",
 	"United Kingdom",
 	"United States",
+);
+
+# fieldMapBits
+# Each Address record contains a flag record ($fieldMap, in
+# &PackRecord) that indicates which fields exist in the record. This
+# hash defines these flags' values.
+%fieldMapBits = (
+	name		=> 0x0001,
+	firstName	=> 0x0002,
+	company		=> 0x0004,
+	phone1		=> 0x0008,
+	phone2		=> 0x0010,
+	phone3		=> 0x0020,
+	phone4		=> 0x0040,
+	phone5		=> 0x0080,
+	address		=> 0x0100,
+	city		=> 0x0200,
+	state		=> 0x0400,
+	zipCode		=> 0x0800,
+	country		=> 0x1000,
+	title		=> 0x2000,
+	custom1		=> 0x4000,
+	custom2		=> 0x8000,
+	custom3		=> 0x10000,
+	custom4		=> 0x20000,
+	note		=> 0x40000,
 );
 
 sub import
@@ -590,28 +619,26 @@ sub PackRecord
 		(($record->{phoneLabel}{display}  & 0x0f) << 20) |
 		(($record->{phoneLabel}{reserved} & 0xff) << 24));
 
-	my $fieldMap;
+	# Set the flag bits that indicate which fields exist in this
+	# record.
+	my $fieldMap = 0;
 
-	$fieldMap = 0;
-	$fieldMap |= 0x0001 if $record->{fields}{name} ne "";
-	$fieldMap |= 0x0002 if $record->{fields}{firstName} ne "";
-	$fieldMap |= 0x0004 if $record->{fields}{company} ne "";
-	$fieldMap |= 0x0008 if $record->{fields}{phone1} ne "";
-	$fieldMap |= 0x0010 if $record->{fields}{phone2} ne "";
-	$fieldMap |= 0x0020 if $record->{fields}{phone3} ne "";
-	$fieldMap |= 0x0040 if $record->{fields}{phone4} ne "";
-	$fieldMap |= 0x0080 if $record->{fields}{phone5} ne "";
-	$fieldMap |= 0x0100 if $record->{fields}{address} ne "";
-	$fieldMap |= 0x0200 if $record->{fields}{city} ne "";
-	$fieldMap |= 0x0400 if $record->{fields}{state} ne "";
-	$fieldMap |= 0x0800 if $record->{fields}{zipCode} ne "";
-	$fieldMap |= 0x1000 if $record->{fields}{country} ne "";
-	$fieldMap |= 0x2000 if $record->{fields}{title} ne "";
-	$fieldMap |= 0x4000 if $record->{fields}{custom1} ne "";
-	$fieldMap |= 0x8000 if $record->{fields}{custom2} ne "";
-	$fieldMap |= 0x10000 if $record->{fields}{custom3} ne "";
-	$fieldMap |= 0x20000 if $record->{fields}{custom4} ne "";
-	$fieldMap |= 0x40000 if $record->{fields}{note} ne "";
+	foreach my $fieldname (qw(name firstName company
+			phone1 phone2 phone3 phone4 phone5
+			address city state zipCode country title
+			custom1 custom2 custom3 custom4
+			note))
+	{
+		if (defined($record->{fields}{$fieldname}) &&
+		    ($record->{fields}{$fieldname} ne ""))
+		{
+			$fieldMap |= $fieldMapBits{$fieldname};
+		}
+		else 
+		{ 
+			$record->{fields}{$fieldname} = ""; 
+		} 
+	}
 
 	$retval .= pack("N", $fieldMap);
 
@@ -627,38 +654,19 @@ sub PackRecord
 		$companyFieldOff = length($fields) + 1;
 		$fields .= $record->{fields}{company} . "\0"
 	}
-	$fields .= $record->{fields}{phone1} . "\0"
-		unless $record->{fields}{phone1} eq "";
-	$fields .= $record->{fields}{phone2} . "\0"
-		unless $record->{fields}{phone2} eq "";
-	$fields .= $record->{fields}{phone3} . "\0"
-		unless $record->{fields}{phone3} eq "";
-	$fields .= $record->{fields}{phone4} . "\0"
-		unless $record->{fields}{phone4} eq "";
-	$fields .= $record->{fields}{phone5} . "\0"
-		unless $record->{fields}{phone5} eq "";
-	$fields .= $record->{fields}{address} . "\0"
-		unless $record->{fields}{address} eq "";
-	$fields .= $record->{fields}{city} . "\0"
-		unless $record->{fields}{city} eq "";
-	$fields .= $record->{fields}{state} . "\0"
-		unless $record->{fields}{state} eq "";
-	$fields .= $record->{fields}{zipCode} . "\0"
-		unless $record->{fields}{zipCode} eq "";
-	$fields .= $record->{fields}{country} . "\0"
-		unless $record->{fields}{country} eq "";
-	$fields .= $record->{fields}{title} . "\0"
-		unless $record->{fields}{title} eq "";
-	$fields .= $record->{fields}{custom1} . "\0"
-		unless $record->{fields}{custom1} eq "";
-	$fields .= $record->{fields}{custom2} . "\0"
-		unless $record->{fields}{custom2} eq "";
-	$fields .= $record->{fields}{custom3} . "\0"
-		unless $record->{fields}{custom3} eq "";
-	$fields .= $record->{fields}{custom4} . "\0"
-		unless $record->{fields}{custom4} eq "";
-	$fields .= $record->{fields}{note} . "\0"
-		unless $record->{fields}{note} eq "";
+
+	# Append each nonempty field in turn to $fields.
+	foreach my $fieldname (qw(phone1 phone2 phone3 phone4 phone5
+			address city state zipCode country title
+			custom1 custom2 custom3 custom4 note))
+	{
+		# Skip empty fields (either blank or undefined).
+		next if !defined($record->{fields}{$fieldname});
+		next if $record->{fields}{$fieldname} eq "";
+
+		# Append the field (with a terminating NUL)
+		$fields .= $record->{fields}{$fieldname} . "\0";
+	}
 
 	$retval .= pack("C", $companyFieldOff);
 	$retval .= $fields;

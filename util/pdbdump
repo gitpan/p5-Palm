@@ -2,7 +2,7 @@
 #
 # Dump a Palm PDB or PRC database.
 #
-# $Id: pdbdump,v 3.2 2000/09/25 05:06:05 arensb Exp $
+# $Id: pdbdump,v 3.5 2002/04/10 00:58:28 arensb Exp $
 
 use strict;
 use Palm::PDB;
@@ -17,13 +17,14 @@ use Palm::ToDo;
 
 use vars qw( $VERSION %PDBHandlers %PRCHandlers $hexdump );
 
-$VERSION = (qw( $Revision: 3.2 $ ))[1];
+$VERSION = sprintf "%d.%03d_%03d_%03d",
+	'$Revision: 3.5 $ ' =~ m{(\d+)(?:\.(\d+))};
 
 *PDBHandlers = *Palm::PDB::PDBHandlers;
 *PRCHandlers = *Palm::PDB::PRCHandlers;
 
 &Palm::PDB::RegisterPRCHandlers("Palm::Raw",
-	[ "", "" ],
+	[ "", "" ]
 	);
 
 $hexdump = 1;			# By default, print hex dumps of everything
@@ -547,11 +548,12 @@ sub _load_records
 		# should be.
 		if (tell($fh) > $pdb->{_index}[$i]{offset})
 		{
-			die "Bad offset for record $i: expected ",
-				sprintf("0x%08x",
-					$pdb->{_index}[$i]{offset}),
-				" but it's at ",
-				sprintf("[0x%08x]", tell($fh)), "\n";
+# XXX - The two NULs are really optional.
+#			die "Bad offset for record $i: expected ",
+#				sprintf("0x%08x",
+#					$pdb->{_index}[$i]{offset}),
+#				" but it's at ",
+#				sprintf("[0x%08x]", tell($fh)), "\n";
 		}
 
 		# Seek to the right place, if necessary
@@ -717,7 +719,7 @@ sub dumphash
 			&dumphash($value, $indent . "\t");
 		} elsif (ref($value) eq "ARRAY")
 		{
-			my $i;
+			my($i,$j);
 
 			print $indent, $key, ":\n";
 			for ($i = 0; $i <= $#{$value}; $i++)
@@ -727,7 +729,15 @@ sub dumphash
 					print $indent, "    $i:\n";
 					&dumphash($value->[$i],
 						$indent . "\t");
-				} else {
+				} elsif (ref($value->[$i]) eq "ARRAY")
+				{
+					my @v2 = @{$value->[$i]};
+					for ($j = 0; $j <= $#v2; $j++)
+					{
+						print $indent,
+							"\t$i-$j: [$v2[$j]]\n";
+					}
+				}else {
 					print $indent,
 						"\t$i: [$value->[$i]]\n";
 				}

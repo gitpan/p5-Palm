@@ -12,14 +12,16 @@
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
 #
-# $Id: Raw.pm,v 1.8 2000/09/24 16:26:06 arensb Exp $
+# $Id: Raw.pm,v 1.10 2002/11/03 16:43:16 azummo Exp $
 
 use strict;
 package Palm::Raw;
 use Palm::PDB;
 use vars qw( $VERSION @ISA );
 
-$VERSION = sprintf "%d.%03d", '$Revision: 1.8 $ ' =~ m{(\d+)\.(\d+)};
+# One liner, to allow MakeMaker to work.
+$VERSION = do { my @r = (q$Revision: 1.10 $ =~ /\d+/g); sprintf "%d."."%02d" x $#r, @r };
+
 @ISA = qw( Palm::PDB );
 
 =head1 NAME
