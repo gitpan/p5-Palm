@@ -6,7 +6,7 @@
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
 #
-# $Id: ToDo.pm,v 1.6 2000/05/07 06:34:11 arensb Exp $
+# $Id: ToDo.pm,v 1.9 2000/09/24 16:26:17 arensb Exp $
 
 # XXX - Bug: apparently, the first ToDo item shows up with a category
 # of "unfiled"
@@ -18,7 +18,7 @@ use Palm::StdAppInfo();
 
 use vars qw( $VERSION @ISA );
 
-$VERSION = (qw( $Revision: 1.6 $ ))[1];
+$VERSION = sprintf "%d.%03d", '$Revision: 1.9 $ ' =~ m{(\d+)\.(\d+)};
 @ISA = qw( Palm::Raw Palm::StdAppInfo );
 
 =head1 NAME
@@ -143,6 +143,9 @@ sub new
 
 Creates a new ToDo record, with blank values for all of the fields.
 
+C<new_Record> does B<not> add the new record to C<$pdb>. For that,
+you want C<$pdb-E<gt>append_Record>.
+
 =cut
 
 # new_Record
@@ -181,7 +184,7 @@ sub ParseAppInfoBlock
 	# Get the standard parts of the AppInfo block
 	$std_len = &Palm::StdAppInfo::parse_StdAppInfo($appinfo, $data);
 
-	$data = substr $data, $std_len;		# Remove the parsed part
+	$data = $appinfo->{other};		# Look at the non-category part
 
 	# Get the rest of the AppInfo block
 	my $unpackstr =		# Argument to unpack()
@@ -202,13 +205,13 @@ sub PackAppInfoBlock
 	my $self = shift;
 	my $retval;
 
-	# Pack the standard part of the AppInfo block
-	$retval = &Palm::StdAppInfo::pack_StdAppInfo($self->{appinfo});
-
-	# And the application-specific stuff
-	$retval .= pack("x2 n Cx",
+	# Pack the application-specific part of the AppInfo block
+	$self->{appinfo}{other} = pack("x2 n Cx",
 		$self->{appinfo}{dirty_appinfo},
 		$self->{appinfo}{sort_order});
+
+	# Pack the AppInfo block
+	$retval = &Palm::StdAppInfo::pack_StdAppInfo($self->{appinfo});
 
 	return $retval;
 }

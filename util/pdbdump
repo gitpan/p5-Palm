@@ -2,7 +2,7 @@
 #
 # Dump a Palm PDB or PRC database.
 #
-# $Id: pdbdump,v 2.0 2000/05/08 09:48:36 arensb Exp $
+# $Id: pdbdump,v 3.2 2000/09/25 05:06:05 arensb Exp $
 
 use strict;
 use Palm::PDB;
@@ -17,10 +17,14 @@ use Palm::ToDo;
 
 use vars qw( $VERSION %PDBHandlers %PRCHandlers $hexdump );
 
-$VERSION = (qw( $Revision: 2.0 $ ))[1];
+$VERSION = (qw( $Revision: 3.2 $ ))[1];
 
 *PDBHandlers = *Palm::PDB::PDBHandlers;
 *PRCHandlers = *Palm::PDB::PRCHandlers;
+
+&Palm::PDB::RegisterPRCHandlers("Palm::Raw",
+	[ "", "" ],
+	);
 
 $hexdump = 1;			# By default, print hex dumps of everything
 
@@ -81,6 +85,7 @@ sub rawread
 
 	# Open database file
 	open PDB, "< $fname" or die "Can't open \"$fname\": $!\n";
+	binmode PDB;			# Parse as binary file under MS-DOS
 
 	# Get the size of the file. It'll be useful later
 	seek PDB, 0, 2;		# 2 == SEEK_END. Seek to the end.
@@ -124,6 +129,7 @@ sub rawread
 	$self->{attributes}{"OK newer"} = 1 if $attributes & 0x0010;
 	$self->{attributes}{reset} = 1 if $attributes & 0x0020;
 	$self->{attributes}{open} = 1 if $attributes & 0x0040;
+	$self->{attributes}{launchable} = 1 if $attributes & 0x0200;
 	$self->{version} = $version;
 	$self->{ctime} = $ctime - $EPOCH_1904;
 	$self->{mtime} = $mtime - $EPOCH_1904;
@@ -139,6 +145,18 @@ sub rawread
 	print <<EOT;
     Name:           $name
     Attributes:     @{[sprintf("0x%02x", $attributes)]}
+EOT
+	print " "x19;
+	print " LAUNCHABLE"	if $self->{attributes}{launchable};
+	print " OPEN"		if $self->{attributes}{open};
+	print " RESET"		if $self->{attributes}{reset};
+	print " OKNEWER"	if $self->{attributes}{"OK newer"};
+	print " BACKUP"		if $self->{attributes}{backup};
+	print " APPINFO-DIRTY"	if $self->{attributes}{"AppInfo dirty"};
+	print " READ-ONLY"	if $self->{attributes}{"read-only"};
+	print " RESOURCE"	if $self->{attributes}{resource};
+	print "\n";
+	print <<EOT;
     Version:        $version
     Ctime:          $ctime	@{[scalar(localtime($ctime-$EPOCH_1904))]}
     Mtime:          $mtime	@{[scalar(localtime($mtime-$EPOCH_1904))]}
@@ -217,11 +235,8 @@ EOT
 		&_load_rec_index($self, \*PDB);
 	}
 
-	# Read the two NUL bytes
-	read PDB, $buf, 2;
-	$self->{"2NULs"} = $buf;
-
-	print "The two NULs: [", $self->{"2NULs"}, "]\n\n";
+	# Ignore the two NUL bytes that are usually here. We'll seek()
+	# around them later.
 
 	# Read AppInfo block, if it exists
 	if ($self->{_appinfo_offset} != 0)
@@ -342,10 +357,14 @@ sub _load_rsrc_index
 	my $fh = shift;		# Input file handle
 	my $i;
 
+	print "Resource index:\n";
+
 	# Read each resource index entry in turn
 	for ($i = 0; $i < $pdb->{_numrecs}; $i++)
 	{
 		my $buf;		# Input buffer
+
+		print "  Resource index entry $i\n";
 
 		# Read the next resource index entry
 		my $type;
@@ -354,12 +373,24 @@ sub _load_rsrc_index
 		my $entry = {};		# Parsed index entry
 
 		read $fh, $buf, $IndexRsrcLen;
+		if ($hexdump)
+		{
+			&hexdump("   ", $buf);
+			print "\n";
+		}
 
 		($type, $id, $offset) = unpack "a4 n N", $buf;
 
 		$entry->{type} = $type;
 		$entry->{id} = $id;
 		$entry->{offset} = $offset;
+
+		print <<EOT;
+    Offset:         $offset
+    ID:             $id
+    Type:           $type
+
+EOT
 
 		push @{$pdb->{_index}}, $entry;
 	}
@@ -378,12 +409,18 @@ sub _load_appinfo_block
 
 	# Sanity check: make sure we're positioned at the beginning of
 	# the AppInfo block
-	if (tell($fh) != $pdb->{_appinfo_offset})
+	if (tell($fh) > $pdb->{_appinfo_offset})
 	{
 		die "Bad AppInfo offset: expected ",
 			sprintf("0x%08x", $pdb->{_appinfo_offset}),
 			", but I'm at ",
 			tell($fh), "\n";
+	}
+
+	# Seek to the right place, if necessary
+	if (tell($fh) != $pdb->{_appinfo_offset})
+	{
+		seek PDB, $pdb->{_appinfo_offset}, 0;
 	}
 
 	# There's nothing that explicitly gives the size of the
@@ -397,7 +434,7 @@ sub _load_appinfo_block
 	{
 		# The next thing in the file is the sort block
 		$len = $pdb->{_sort_offset} - $pdb->{_appinfo_offset};
-	} elsif ((defined $pdb->{_index}) && (@{$pdb->{_index}} != ()))
+	} elsif ((defined $pdb->{_index}) && @{$pdb->{_index}})
 	{
 		# There's no sort block; the next thing in the file is
 		# the first data record
@@ -418,7 +455,7 @@ sub _load_appinfo_block
 	}
 
 	# Tell the real class to parse the AppInfo block
-	$pdb->{"appinfo"} = $pdb->ParseAppInfoBlock($buf);
+	$pdb->{appinfo} = $pdb->ParseAppInfoBlock($buf);
 
 	# Print out the parsed values
 	if (ref($pdb->{appinfo}) ne "")
@@ -441,12 +478,18 @@ sub _load_sort_block
 
 	# Sanity check: make sure we're positioned at the beginning of
 	# the sort block
-	if (tell($fh) != $pdb->{_sort_offset})
+	if (tell($fh) > $pdb->{_sort_offset})
 	{
 		die "Bad sort block offset: expected ",
 			sprintf("0x%08x", $pdb->{_sort_offset}),
 			", but I'm at ",
 			tell($fh), "\n";
+	}
+
+	# Seek to the right place, if necessary
+	if (tell($fh) != $pdb->{_sort_offset})
+	{
+		seek PDB, $pdb->{_sort_offset}, 0;
 	}
 
 	# There's nothing that explicitly gives the size of the sort
@@ -502,13 +545,19 @@ sub _load_records
 
 		# Sanity check: make sure we're where we think we
 		# should be.
-		if (tell($fh) != $pdb->{_index}[$i]{offset})
+		if (tell($fh) > $pdb->{_index}[$i]{offset})
 		{
 			die "Bad offset for record $i: expected ",
 				sprintf("0x%08x",
 					$pdb->{_index}[$i]{offset}),
 				" but it's at ",
-				sprintf("0x%08x", tell($fh)), "\n";
+				sprintf("[0x%08x]", tell($fh)), "\n";
+		}
+
+		# Seek to the right place, if necessary
+		if (tell($fh) != $pdb->{_index}[$i]{offset})
+		{
+			seek PDB, $pdb->{_index}[$i]{offset}, 0;
 		}
 
 		# Compute the length of the record: the last record
@@ -559,21 +608,30 @@ sub _load_resources
 	my $fh = shift;		# Input file handle
 	my $i;
 
+	print "Resources:\n";
 	# Read each resource in turn
 	for ($i = 0; $i < $pdb->{_numrecs}; $i++)
 	{
 		my $len;	# Length of record
 		my $buf;	# Input buffer
 
+		print "  Resource $i\n";
+
 		# Sanity check: make sure we're where we think we
 		# should be.
-		if (tell($fh) != $pdb->{_index}[$i]{offset})
+		if (tell($fh) > $pdb->{_index}[$i]{offset})
 		{
 			die "Bad offset for resource $i: expected ",
 				sprintf("0x%08x",
 					$pdb->{_index}[$i]{offset}),
 				" but it's at ",
 				sprintf("0x%08x", tell($fh)), "\n";
+		}
+
+		# Seek to the right place, if necessary
+		if (tell($fh) != $pdb->{_index}[$i]{offset})
+		{
+			seek PDB, $pdb->{_index}[$i]{offset}, 0;
 		}
 
 		# Compute the length of the resource: the last
@@ -592,6 +650,11 @@ sub _load_resources
 
 		# Read the resource
 		read $fh, $buf, $len;
+		if ($hexdump)
+		{
+			&hexdump("   ", $buf);
+			print "\n";
+		}
 
 		# Tell the real class to parse the resource data. Pass
 		# &ParseResource all of the information from the
@@ -604,6 +667,10 @@ sub _load_resources
 			"data"	=> $buf,
 			);
 		push @{$pdb->{resources}}, $resource;
+
+		# Print out the parsed values
+		&dumphash($resource, "\t");
+		print "\n";
 	}
 }
 
@@ -632,6 +699,9 @@ sub hexdump
 	}
 }
 
+# XXX - Ought to have a &dumparray as well. The two can call each other
+# recursively.
+
 sub dumphash
 {
 	my $hash = shift;
@@ -652,7 +722,15 @@ sub dumphash
 			print $indent, $key, ":\n";
 			for ($i = 0; $i <= $#{$value}; $i++)
 			{
-				print $indent, "\t$i: [$value->[$i]]\n";
+				if (ref($value->[$i]) eq "HASH")
+				{
+					print $indent, "    $i:\n";
+					&dumphash($value->[$i],
+						$indent . "\t");
+				} else {
+					print $indent,
+						"\t$i: [$value->[$i]]\n";
+				}
 			}
 		} else {
 			print $indent, $key, " -> [", $value, "]\n";

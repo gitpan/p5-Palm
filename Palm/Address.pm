@@ -6,17 +6,17 @@
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
 #
-# $Id: Address.pm,v 1.9 2000/05/06 21:48:50 arensb Exp $
+# $Id: Address.pm,v 1.13 2000/09/24 16:25:33 arensb Exp $
 
 use strict;
 package Palm::Address;
 use Palm::Raw();
-use Palm::StdAppInfo;
+use Palm::StdAppInfo();
 
 use vars qw( $VERSION @ISA
 	$numFieldLabels $addrLabelLength @phoneLabels @countries );
 
-$VERSION = (qw( $Revision: 1.9 $ ))[1];
+$VERSION = sprintf "%d.%03d", '$Revision: 1.13 $ ' =~ m{(\d+)\.(\d+)};
 @ISA = qw( Palm::Raw Palm::StdAppInfo );
 
 # AddressDB records are quite flexible and customizable, and therefore
@@ -285,6 +285,9 @@ sub new
 Creates a new Address record, with blank values for all of the fields.
 The AppInfo block will contain only an "Unfiled" category, with ID 0.
 
+C<new_Record> does B<not> add the new record to C<$pdb>. For that,
+you want C<$pdb-E<gt>append_Record>.
+
 =cut
 
 # new_Record
@@ -365,7 +368,7 @@ sub ParseAppInfoBlock
 	# Get the standard parts of the AppInfo block
 	$std_len = &Palm::StdAppInfo::parse_StdAppInfo($appinfo, $data);
 
-	$data = substr $data, $std_len;		# Remove the parsed part
+	$data = $appinfo->{other};		# Look at the non-standard part
 
 	# Get the rest of the AppInfo block
 	my $unpackstr =		# Argument to unpack()
@@ -424,13 +427,11 @@ sub PackAppInfoBlock
 	my $self = shift;
 	my $retval;
 	my $i;
+	my $other;		# Non-standard AppInfo stuff
 
-	# Pack the standard part of the AppInfo block
-	$retval = &Palm::StdAppInfo::pack_StdAppInfo($self->{appinfo});
-
-	# And the application-specific stuff
-	$retval .= pack("x2 N", $self->{appinfo}{dirtyFields});
-	$retval .= pack("a$addrLabelLength" x $numFieldLabels,
+	# Pack the application-specific part of the AppInfo block
+	$other = pack("x2 N", $self->{appinfo}{dirtyFields});
+	$other .= pack("a$addrLabelLength" x $numFieldLabels,
 		$self->{appinfo}{fieldLabels}{name},
 		$self->{appinfo}{fieldLabels}{firstName},
 		$self->{appinfo}{fieldLabels}{company},
@@ -453,9 +454,14 @@ sub PackAppInfoBlock
 		$self->{appinfo}{fieldLabels}{phone6},
 		$self->{appinfo}{fieldLabels}{phone7},
 		$self->{appinfo}{fieldLabels}{phone8});
-	$retval .= pack("C C x2",
+	$other .= pack("C C x2",
 		$self->{appinfo}{country},
 		$self->{appinfo}{misc});
+	$self->{appinfo}{other} = $other;
+
+	# Pack the standard part of the AppInfo block
+	$retval = &Palm::StdAppInfo::pack_StdAppInfo($self->{appinfo});
+
 	return $retval;
 }
 

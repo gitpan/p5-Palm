@@ -6,7 +6,7 @@
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
 #
-# $Id: PDB.pm,v 1.10 2000/05/07 06:31:50 arensb Exp $
+# $Id: PDB.pm,v 1.19 2000/11/09 15:32:33 arensb Exp $
 
 # A Palm database file (either .pdb or .prc) has the following overall
 # structure:
@@ -23,7 +23,7 @@ use strict;
 package Palm::PDB;
 use vars qw( $VERSION %PDBHandlers %PRCHandlers );
 
-$VERSION = (qw( $Revision: 1.10 $ ))[1];
+$VERSION = sprintf "%d.%03d", '$Revision: 1.19 $ ' =~ m{(\d+)\.(\d+)};
 
 =head1 NAME
 
@@ -40,6 +40,10 @@ Palm::PDB - Parse Palm database files.
     # Manipulate records in $pdb
 
     $pdb->Write("myotherfile.pdb");
+
+(Note: yes, you do want to use C<Palm::PDB>, even if you're dealing
+with some other type of database. $pdb will be reblessed to the
+appropriate type by C<$pdb-E<gt>Load>.)
 
 =head1 DESCRIPTION
 
@@ -99,6 +103,7 @@ sub new
 		"OK newer"	=> 0,
 		reset		=> 0,
 		open		=> 0,
+		launchable	=> 0,	# For PQAs
 	};
 	$self->{version} = 0;
 
@@ -106,6 +111,12 @@ sub new
 	$self->{ctime} = $now;
 	$self->{mtime} = $now;
 	$self->{baktime} = 0;
+
+	$self->{modnum} = 0;
+	$self->{type} = "\0\0\0\0";
+	$self->{creator} = "\0\0\0\0";
+	$self->{uniqueIDseed} = 0;
+	$self->{"2NULs"} = "\0\0";
 
 	bless $self, $class;
 	return $self;
@@ -326,8 +337,12 @@ The name of the database.
 
 =item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"open"Z<>}
 
+=item $pdb-E<gt>{Z<>"attributes"Z<>}{Z<>"launchable"Z<>}
+
 These are the attribute flags from the database header. Each is true
 iff the corresponding flag is set.
+
+The "launchable" attribute is set on PQAs.
 
 =item $pdb-E<gt>{Z<>"version"Z<>}
 
@@ -406,6 +421,7 @@ sub Load
 
 	# Open database file
 	open PDB, "< $fname" or die "Can't open \"$fname\": $!\n";
+	binmode PDB;			# Read as binary file under MS-DOS
 
 	# Get the size of the file. It'll be useful later
 	seek PDB, 0, 2;		# 2 == SEEK_END. Seek to the end.
@@ -442,6 +458,7 @@ sub Load
 	$self->{attributes}{"OK newer"} = 1 if $attributes & 0x0010;
 	$self->{attributes}{reset} = 1 if $attributes & 0x0020;
 	$self->{attributes}{open} = 1 if $attributes & 0x0040;
+	$self->{attributes}{launchable} = 1 if $attributes & 0x0200;
 	$self->{version} = $version;
 	$self->{ctime} = $ctime - $EPOCH_1904;
 	$self->{mtime} = $mtime - $EPOCH_1904;
@@ -508,8 +525,12 @@ sub Load
 	}
 
 	# Read the two NUL bytes
-	read PDB, $buf, 2;
-	$self->{"2NULs"} = $buf;
+	# XXX - Actually, these are bogus. They don't appear in the
+	# spec. The Right Thing to do is to ignore them, and use the
+	# specified or calculated offsets, if they're sane. Sane ==
+	# appears later than the current position.
+#	read PDB, $buf, 2;
+#	$self->{"2NULs"} = $buf;
 
 	# Read AppInfo block, if it exists
 	if ($self->{_appinfo_offset} != 0)
@@ -645,12 +666,18 @@ sub _load_appinfo_block
 
 	# Sanity check: make sure we're positioned at the beginning of
 	# the AppInfo block
-	if (tell($fh) != $pdb->{_appinfo_offset})
+	if (tell($fh) > $pdb->{_appinfo_offset})
 	{
 		die "Bad AppInfo offset: expected ",
 			sprintf("0x%08x", $pdb->{_appinfo_offset}),
 			", but I'm at ",
 			tell($fh), "\n";
+	}
+
+	# Seek to the right place, if necessary
+	if (tell($fh) != $pdb->{_appinfo_offset})
+	{
+		seek PDB, $pdb->{_appinfo_offset}, 0;
 	}
 
 	# There's nothing that explicitly gives the size of the
@@ -664,7 +691,7 @@ sub _load_appinfo_block
 	{
 		# The next thing in the file is the sort block
 		$len = $pdb->{_sort_offset} - $pdb->{_appinfo_offset};
-	} elsif ((defined $pdb->{_index}) && (@{$pdb->{_index}} != ()))
+	} elsif ((defined $pdb->{_index}) && @{$pdb->{_index}})
 	{
 		# There's no sort block; the next thing in the file is
 		# the first data record
@@ -694,12 +721,18 @@ sub _load_sort_block
 
 	# Sanity check: make sure we're positioned at the beginning of
 	# the sort block
-	if (tell($fh) != $pdb->{_sort_offset})
+	if (tell($fh) > $pdb->{_sort_offset})
 	{
 		die "Bad sort block offset: expected ",
 			sprintf("0x%08x", $pdb->{_sort_offset}),
 			", but I'm at ",
 			tell($fh), "\n";
+	}
+
+	# Seek to the right place, if necessary
+	if (tell($fh) != $pdb->{_sort_offset})
+	{
+		seek PDB, $pdb->{_sort_offset}, 0;
 	}
 
 	# There's nothing that explicitly gives the size of the sort
@@ -747,13 +780,19 @@ sub _load_records
 
 		# Sanity check: make sure we're where we think we
 		# should be.
-		if (tell($fh) != $pdb->{_index}[$i]{offset})
+		if (tell($fh) > $pdb->{_index}[$i]{offset})
 		{
 			die "Bad offset for record $i: expected ",
 				sprintf("0x%08x",
 					$pdb->{_index}[$i]{offset}),
 				" but it's at ",
-				sprintf("0x%08x", tell($fh)), "\n";
+				sprintf("[0x%08x]", tell($fh)), "\n";
+		}
+
+		# Seek to the right place, if necessary
+		if (tell($fh) != $pdb->{_index}[$i]{offset})
+		{
+			seek PDB, $pdb->{_index}[$i]{offset}, 0;
 		}
 
 		# Compute the length of the record: the last record
@@ -803,13 +842,19 @@ sub _load_resources
 
 		# Sanity check: make sure we're where we think we
 		# should be.
-		if (tell($fh) != $pdb->{_index}[$i]{offset})
+		if (tell($fh) > $pdb->{_index}[$i]{offset})
 		{
 			die "Bad offset for resource $i: expected ",
 				sprintf("0x%08x",
 					$pdb->{_index}[$i]{offset}),
 				" but it's at ",
 				sprintf("0x%08x", tell($fh)), "\n";
+		}
+
+		# Seek to the right place, if necessary
+		if (tell($fh) != $pdb->{_index}[$i]{offset})
+		{
+			seek PDB, $pdb->{_index}[$i]{offset}, 0;
 		}
 
 		# Compute the length of the resource: the last
@@ -885,6 +930,7 @@ sub Write
 
 	# Open file
 	open OFILE, "> $fname" or die "Can't write to \"$fname\": $!\n";
+	binmode OFILE;			# Write as binary file under MS-DOS
 
 	# Get AppInfo block
 	my $appinfo_block = $self->PackAppInfoBlock;
@@ -926,12 +972,20 @@ sub Write
 			my $id;
 			my $data;
 
+			# XXX - Should probably check the length of this
+			# record and not add it to the record if it's 0.
+
 			# Get all the stuff that goes in the index, as
 			# well as the record data.
 			$attributes = 0;
-			$attributes = ($record->{category} & 0x0f)
-				unless ($record->{attributes}{expunged} ||
-					$record->{attributes}{deleted});
+			if ($record->{attributes}{expunged} ||
+			    $record->{attributes}{deleted})
+			{
+				$attributes |= 0x08
+					if $record->{attributes}{archive};
+			} else {
+				$attributes = ($record->{category} & 0x0f);
+			}
 			$attributes |= 0x80
 				if $record->{attributes}{expunged};
 			$attributes |= 0x40
@@ -968,7 +1022,7 @@ sub Write
 		($self->{attributes}{open}		? 0x0040 : 0);
 
 	# Calculate AppInfo block offset
-	if ($appinfo_block eq "")
+	if ((!defined($appinfo_block)) || ($appinfo_block eq ""))
 	{
 		# There's no AppInfo block
 		$appinfo_offset = 0;
@@ -1066,7 +1120,15 @@ sub Write
 			my $id;
 			my $index_data;
 
+			# XXX - Probably shouldn't write this record if
+			# length($data) == 0
 			($attributes, $id, $data) = @{$rec_data};
+
+			if (length($data) == 0)
+			{
+				warn printf("Write: Warning: record 0x%08x has length 0\n", $id)
+			}
+
 			$index_data = pack "N C C3",
 				$rec_offset,
 				$attributes,
@@ -1130,10 +1192,14 @@ Creates a new record, with the bare minimum needed:
 	$record->{attributes}{dirty}
 	$record->{attributes}{deleted}
 	$record->{attributes}{private}
+	$record->{attributes}{archive}
 	$record->{id}
 
 The ``dirty'' attribute is originally set, since this function will
 usually be called to create records to be added to a database.
+
+C<new_Record> does B<not> add the new record to a PDB. For that,
+you want C<append_Record>.
 
 =cut
 
@@ -1153,6 +1219,7 @@ sub new_Record
 		dirty		=> 1,	# Note: originally dirty
 		deleted		=> 0,
 		private		=> 0,
+		archive         => 0,
 	};
 	$retval->{id} = 0;		# Initially, no record ID
 
@@ -1228,7 +1295,7 @@ sub new_Resource
 	my $retval = {};
 
 	# Initialize the resource
-	$retval->{type} = "    ";	# XXX - Is this sane?
+	$retval->{type} = "\0\0\0\0";
 	$retval->{id} = 0;
 
 	return $retval;
@@ -1423,6 +1490,7 @@ written to the database file.
         	dirty    => bool,	# True iff dirty
         	deleted  => bool,	# True iff deleted
         	private  => bool,	# True iff private
+	        archive  => bool,       # True iff to be archived
               },
           category       => $category,	# Record's category number
           id             => $id,	# Record's unique ID

@@ -6,15 +6,16 @@
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
 #
-# $Id: Datebook.pm,v 1.5 2000/05/07 06:30:51 arensb Exp $
+# $Id: Datebook.pm,v 1.13 2000/09/24 16:25:43 arensb Exp $
 
 use strict;
 package Palm::Datebook;
 use Palm::Raw();
+use Palm::StdAppInfo();
 
 use vars qw( $VERSION @ISA );
 
-$VERSION = (qw( $Revision: 1.5 $ ))[1];
+$VERSION = sprintf "%d.%03d", '$Revision: 1.13 $ ' =~ m{(\d+)\.(\d+)};
 @ISA = qw( Palm::Raw Palm::StdAppInfo );
 
 
@@ -219,10 +220,10 @@ sub new
 				# The PDB is not a resource database by
 				# default, but it's worth emphasizing,
 				# since DatebookDB is explicitly not a PRC.
-	$self->{appinfo} = Palm::StdAppInfo->newStdAppInfo();
-					# Standard AppInfo block
-	$self->{appinfo}{start_of_week} = 0;
-					# XXX - This is bogus
+	$self->{appinfo} = {
+		start_of_week	=> 0,	# XXX - This is bogus
+	};
+	&Palm::StdAppInfo::seed_StdAppInfo($self->{appinfo});
 
 	$self->{sort} = undef;	# Empty sort block
 
@@ -236,6 +237,9 @@ sub new
   $record = $pdb->new_Record;
 
 Creates a new Datebook record, with blank values for all of the fields.
+
+C<new_Record> does B<not> add the new record to C<$pdb>. For that,
+you want C<$pdb-E<gt>append_Record>.
 
 =cut
 
@@ -255,13 +259,12 @@ sub new_Record
 	$retval->{end_hour} =
 	$retval->{end_minute} = 0xff;
 
-	# Set the alarm to 10 minutes before the event.
-	# XXX - This should probably be customizable
+	# Set the alarm. Defaults to 10 minutes before the event.
 	$retval->{alarm}{advance} = 10;
 	$retval->{alarm}{unit} = 0;		# Minutes
 
-	# No repeat
-	# delete($retval->{repeat});
+	$retval->{repeat} = {};			# No repeat
+	$retval->{exceptions} = [];		# No exceptions
 
 	$retval->{description} = "";
 	$retval->{note} = undef;
@@ -284,7 +287,7 @@ sub ParseAppInfoBlock
 	# Get the standard parts of the AppInfo block
 	$std_len = &Palm::StdAppInfo::parse_StdAppInfo($appinfo, $data);
 
-	$data = substr $data, $std_len;		# Remove the parsed part
+	$data = $appinfo->{other};		# Look at non-category part
 
 	# Get the rest of the AppInfo block
 	my $unpackstr =		# Argument to unpack(), since it's hairy
@@ -305,11 +308,12 @@ sub PackAppInfoBlock
 	my $self = shift;
 	my $retval;
 
+	# Pack the non-category part of the AppInfo block
+	$self->{appinfo}{other} =
+		pack("x2 C x", $self->{appinfo}{start_of_week});
+
 	# Pack the standard part of the AppInfo block
 	$retval = &Palm::StdAppInfo::pack_StdAppInfo($self->{appinfo});
-
-	# And the application-specific stuff
-	$retval .= pack("x2 C x", $self->{appinfo}{start_of_week});
 
 	return $retval;
 }
@@ -500,6 +504,8 @@ sub ParseRecord
 		$record{note} = $note;
 	}
 
+	delete $record{data};
+
 	return \%record;
 }
 
@@ -540,7 +546,7 @@ sub PackRecord
 
 	my $alarm = undef;
 
-	if (%{$record->{alarm}} ne ())
+	if (defined($record->{alarm}) && %{$record->{alarm}})
 	{
 		$flags |= 0x4000;
 		$alarm = pack "c C",
@@ -550,7 +556,7 @@ sub PackRecord
 
 	my $repeat = undef;
 
-	if (%{$record->{repeat}} ne ())
+	if (defined($record->{repeat}) && %{$record->{repeat}})
 	{
 		my $type;		# Repeat type
 		my $endDate;
@@ -611,7 +617,7 @@ sub PackRecord
 
 	my $exceptions = undef;
 
-	if (@{$record->{exceptions}} ne ())
+	if (defined($record->{exceptions}) && @{$record->{exceptions}})
 	{
 		my $numExceptions = $#{$record->{exceptions}} + 1;
 		my $exception;
@@ -635,7 +641,7 @@ sub PackRecord
 
 	my $description = undef;
 
-	if ($record->{description} ne "")
+	if (defined($record->{description}) && ($record->{description} ne ""))
 	{
 		$flags |= 0x0400;
 		$description = $record->{description} . "\0";
@@ -643,7 +649,7 @@ sub PackRecord
 
 	my $note = undef;
 
-	if ($record->{note} ne "")
+	if (defined($record->{note}) && ($record->{note} ne ""))
 	{
 		$flags |= 0x1000;
 		$note = $record->{note} . "\0";
@@ -657,11 +663,11 @@ sub PackRecord
 		$rawDate,
 		$flags;
 
-	$retval .= $alarm;
-	$retval .= $repeat;
-	$retval .= $exceptions;
-	$retval .= $description;
-	$retval .= $note;
+	$retval .= $alarm	if defined($alarm);
+	$retval .= $repeat	if defined($repeat);
+	$retval .= $exceptions	if defined($exceptions);
+	$retval .= $description	if defined($description);
+	$retval .= $note	if defined($note);
 
 	return $retval;
 }

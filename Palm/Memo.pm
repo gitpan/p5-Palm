@@ -6,15 +6,15 @@
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
 #
-# $Id: Memo.pm,v 1.6 2000/05/07 06:31:33 arensb Exp $
+# $Id: Memo.pm,v 1.10 2000/09/24 16:25:56 arensb Exp $
 
 use strict;
 package Palm::Memo;
 use Palm::Raw();
-use Palm::StdAppInfo;
+use Palm::StdAppInfo();
 use vars qw( $VERSION @ISA );
 
-$VERSION = (qw( $Revision: 1.6 $ ))[1];
+$VERSION = sprintf "%d.%03d", '$Revision: 1.10 $ ' =~ m{(\d+)\.(\d+)};
 @ISA = qw( Palm::Raw Palm::StdAppInfo );
 
 =head1 NAME
@@ -114,6 +114,9 @@ sub new
 
 Creates a new Memo record, with blank values for all of the fields.
 
+C<new_Record> does B<not> add the new record to C<$pdb>. For that,
+you want C<$pdb-E<gt>append_Record>.
+
 =cut
 
 sub new_Record
@@ -140,7 +143,7 @@ sub ParseAppInfoBlock
 	# Get the standard parts of the AppInfo block
 	$std_len = &Palm::StdAppInfo::parse_StdAppInfo($appinfo, $data);
 
-	$data = substr $data, $std_len;		# Remove the parsed part
+	$data = $appinfo->{other};		# Look at the non-category part
 
 	# Get the rest of the AppInfo block
 	my $unpackstr =		# Argument to unpack()
@@ -160,11 +163,12 @@ sub PackAppInfoBlock
 	my $retval;
 	my $i;
 
-	# Pack the standard part of the AppInfo block
-	$retval = &Palm::StdAppInfo::pack_StdAppInfo($self->{appinfo});
+	# Pack the non-category part of the AppInfo block
+	$self->{appinfo}{other} =
+		pack("x4 C x1", $self->{appinfo}{sortOrder});
 
-	# And the application-specific stuff
-	$retval .= pack("x4 C x1", $self->{appinfo}{sortOrder});
+	# Pack the AppInfo block
+	$retval = &Palm::StdAppInfo::pack_StdAppInfo($self->{appinfo});
 
 	return $retval;
 }
