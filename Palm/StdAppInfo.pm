@@ -6,9 +6,12 @@
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
 #
-# $Id: StdAppInfo.pm,v 1.1 2000/04/24 10:01:06 arensb Exp $
+# $Id: StdAppInfo.pm,v 1.3 2000/05/07 06:33:56 arensb Exp $
 
 # XXX - Write POD
+
+# XXX - Describe the fields that StdAppInfo creates
+
 # XXX - Methods for adding, removing categories
 
 use strict;
@@ -18,7 +21,7 @@ use Palm::Raw();
 # Don't harass me about these variables
 use vars qw( $VERSION @ISA $numCategories $categoryLength $stdAppInfoSize );
 
-$VERSION = (qw( $Revision: 1.1 $ ))[1];
+$VERSION = (qw( $Revision: 1.3 $ ))[1];
 @ISA = qw( Palm::Raw );
 
 =head1 NAME
@@ -57,6 +60,13 @@ $stdAppInfoSize = 2 +		# Length of a standard AppInfo block
 		$numCategories +
 		1 + 1;
 
+sub import
+{
+	&Palm::PDB::RegisterPDBHandlers(__PACKAGE__,
+		[ "", "" ],
+		);
+}
+
 =head2 seed_StdAppInfo
 
     &Palm::StdAppInfo::seed_StdAppInfo(\%appinfo);
@@ -73,16 +83,16 @@ sub seed_StdAppInfo
 {
 	my $appinfo = shift;
 
-	$appinfo->{"renamed"} = 0;
-	@{$appinfo->{"categories"}} = [ "Unfiled" ];
-	@{$appinfo->{"uniqueIDs"}} = [ 0 ];
-	$appinfo->{"lastUniqueID"} = 1;		# 0 means "Unfiled", by
+	$appinfo->{renamed} = 0;
+	@{$appinfo->{categories}} = [ "Unfiled" ];
+	@{$appinfo->{uniqueIDs}} = [ 0 ];
+	$appinfo->{lastUniqueID} = 1;		# 0 means "Unfiled", by
 						# convention
 
 	# Make sure there are $numCategories categories, just for
 	# neatness
-	$#{$appinfo->{"categories"}} = $Palm::StdAppInfo::numCategories-1;
-	$#{$appinfo->{"uniqueIDs"}}  = $Palm::StdAppInfo::numCategories-1;
+	$#{$appinfo->{categories}} = $Palm::StdAppInfo::numCategories-1;
+	$#{$appinfo->{uniqueIDs}}  = $Palm::StdAppInfo::numCategories-1;
 }
 
 =head2 newStdAppInfo
@@ -120,7 +130,7 @@ sub new
 			# though.
 
 	# Initialize the AppInfo block
-	$self->{"appinfo"} = &newStdAppInfo();
+	$self->{appinfo} = &newStdAppInfo();
 
 	return $self;
 }
@@ -180,10 +190,10 @@ sub parse_StdAppInfo
 	}
 
 	# Now put the data into $appinfo
-	$appinfo->{"renamed"} = $renamed;
-	$appinfo->{"categories"} = [ @labels ];
-	$appinfo->{"uniqueIDs"} = [ @uniqueIDs ];
-	$appinfo->{"lastUniqueID"} = $lastUniqueID;
+	$appinfo->{renamed} = $renamed;
+	$appinfo->{categories} = [ @labels ];
+	$appinfo->{uniqueIDs} = [ @uniqueIDs ];
+	$appinfo->{lastUniqueID} = $lastUniqueID;
 
 	return $stdAppInfoSize;
 }
@@ -236,25 +246,25 @@ sub pack_StdAppInfo
 	my $retval;
 	my $i;
 
-	$retval = pack("n", $appinfo->{"renamed"});
+	$retval = pack("n", $appinfo->{renamed});
 
 	# There have to be exactly 16 categories in the AppInfo block,
-	# even though $appinfo->{"categories"} may have been mangled
+	# even though $appinfo->{categories} may have been mangled
 	# by a naive (or clever) user or broken program.
 	for ($i = 0; $i < $numCategories; $i++)
 	{
 		$retval .= pack("a$categoryLength",
-			$appinfo->{"categories"}[$i]);
+			$appinfo->{categories}[$i]);
 	}
 
 	# Ditto for category IDs
 	for ($i = 0; $i < $numCategories; $i++)
 	{
-		$retval .= pack("C", $appinfo->{"uniqueIDs"}[$i]);
+		$retval .= pack("C", $appinfo->{uniqueIDs}[$i]);
 	}
 
 	# Last unique ID, and alignment padding
-	$retval .= pack("Cx", $appinfo->{"lastUniqueID"});
+	$retval .= pack("Cx", $appinfo->{lastUniqueID});
 
 	return $retval;
 }
@@ -275,7 +285,7 @@ sub PackAppInfoBlock
 {
 	my $self = shift;
 
-	return &pack_StdAppInfo($self->{"appinfo"});
+	return &pack_StdAppInfo($self->{appinfo});
 }
 
 1;
@@ -287,6 +297,6 @@ Andrew Arensburger E<lt>arensb@ooblick.comE<gt>
 
 =head1 SEE ALSO
 
-Palm::PDB(1)
+Palm::PDB(3)
 
 =cut

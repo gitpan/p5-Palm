@@ -1,4 +1,29 @@
+2000-05-08  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* util/pdbdump: Rewritten from scratch. This is basically just
+	Palm/PDB.pm with trace statements.
+
+2000-05-07  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* Palm/Raw.pm: Added `use strict'. Rearranged some variables at
+	the top.
+
+	* Palm/Raw.pm, Palm/ToDo.pm, Palm/StdAppInfo.pm, Palm/PDB.pm,
+	Palm/Memo.pm, Palm/Mail.pm, Palm/Datebook.pm: Removed unnecessary
+	quoting in class members.
+
+2000-05-06  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	* Palm/Address.pm: Removed unnecessary quoting in class members.
+
+	* Palm/ToDo.pm: Converted to use StdAppInfo.
+
+	* Palm/Raw.pm, Palm/PDB.pm, Palm/ToDo.pm: Fixed man page sections
+	for "see also" section.
+
 2000-04-29  Andrew Arensburger  <arensb@baa.ooblick.com>
+
+	Version 1.1.4 released.
 
 	* README: Added Robert Norris's patch for empty PDBs.
 
