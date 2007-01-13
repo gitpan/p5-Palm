@@ -1,3 +1,9 @@
+2007-01-13	brian d foy <bdfoy@cpan.org>
+
+	* Cleansed the dist to make it installable by CPAN tools.
+	It just needs a version without a _ in it.
+	(http://rt.cpan.org/Ticket/Display.html?id=12837)
+	
 2002-11-07  Andrew Arensburger  <arensb@nerafo.umd.edu>
 
 	* Makefile.PL: Updated version number.
