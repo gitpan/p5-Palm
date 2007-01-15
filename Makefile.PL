@@ -2,11 +2,15 @@ use ExtUtils::MakeMaker;
 
 eval "use Test::Manifest 1.14";
 
-my @classes = qw( Address Datebook Mail Memo PDB Raw StdAppInfo ToDo );
+my @classes = qw( Address Datebook DateTime Mail 
+	Memo PDB Raw StdAppInfo ToDo 
+	ZirePhoto
+	);
 
 WriteMakefile(
     'NAME'			=> 'Palm',
-    'VERSION'		=> '1.006',
+	'ABSTRACT'		=> 'Module for handling PalmOS databases',
+    'VERSION'		=> '1.007',
     'LICENSE'       => 'Perl',
     'DISTNAME'		=> 'p5-Palm',	# More descriptive than just "Palm"
 
@@ -15,10 +19,12 @@ WriteMakefile(
 		},
 
 	'PM'           => {
+		'lib/Palm.pm' => '$(INST_LIBDIR)/Palm.pm',
 		map { ( "lib/$_.pm", "\$(INST_LIBDIR)/Palm/$_.pm" ) } @classes
 		},
 
 	'MAN3PODS'     => {
+		'lib/Palm.pm' => '$(INST_MAN3DIR)/Palm.3',
 		map { ( "lib/$_.pm", "\$(INST_MAN3DIR)/Palm::$_.3" ) } @classes
 		},
 
