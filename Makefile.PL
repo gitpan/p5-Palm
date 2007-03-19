@@ -2,7 +2,8 @@ use ExtUtils::MakeMaker;
 
 eval "use Test::Manifest 1.14";
 
-my @classes = qw( Address Datebook DateTime Mail 
+my @classes = qw( 
+	Address Datebook DateTime Mail 
 	Memo PDB Raw StdAppInfo ToDo 
 	ZirePhoto
 	);
@@ -10,10 +11,11 @@ my @classes = qw( Address Datebook DateTime Mail
 WriteMakefile(
     'NAME'			=> 'Palm',
 	'ABSTRACT'		=> 'Module for handling PalmOS databases',
-    'VERSION'		=> '1.007',
-    'LICENSE'       => 'Perl',
+    'VERSION'		=> '1.008',
+    'LICENSE'       => 'perl',
     'DISTNAME'		=> 'p5-Palm',	# More descriptive than just "Palm"
-
+	'AUTHOR'        => 'brian d foy <bdfoy@cpan.org>',
+	
 	'PREREQ_PM'		=> {
 		'Test::More'	=> '0',
 		},

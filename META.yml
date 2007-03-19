@@ -1,8 +1,8 @@
 --- #YAML:1.0
 name:                p5-Palm
-version:             1.007
+version:             1.008
 abstract:            Module for handling PalmOS databases
-license:             Perl
+license:             perl
 generated_by:        ExtUtils::MakeMaker version 6.31
 distribution_type:   module
 requires:     
@@ -10,3 +10,5 @@ requires:
 meta-spec:
     url:     http://module-build.sourceforge.net/META-spec-v1.2.html
     version: 1.2
+author:
+    - brian d foy <bdfoy@cpan.org>
