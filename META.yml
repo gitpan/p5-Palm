@@ -1,9 +1,9 @@
 --- #YAML:1.0
 name:                p5-Palm
-version:             1.008
+version:             1.009
 abstract:            Module for handling PalmOS databases
 license:             perl
-generated_by:        ExtUtils::MakeMaker version 6.31
+generated_by:        ExtUtils::MakeMaker version 6.32
 distribution_type:   module
 requires:     
     Test::More:                    0

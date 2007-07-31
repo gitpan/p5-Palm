@@ -1,3 +1,7 @@
+2007-07-30 brian d foy <bdfoy@cpan.org>
+	* cleaned up the pod coverage test.
+	* add License and Author stuff to the distro
+
 2007-01-15	brian d foy <bdfoy@cpan.org>
 
 	* chromatic sent me some changes living in another distro

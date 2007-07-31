@@ -11,7 +11,7 @@ my @classes = qw(
 WriteMakefile(
     'NAME'			=> 'Palm',
 	'ABSTRACT'		=> 'Module for handling PalmOS databases',
-    'VERSION'		=> '1.008',
+    'VERSION'		=> '1.009',
     'LICENSE'       => 'perl',
     'DISTNAME'		=> 'p5-Palm',	# More descriptive than just "Palm"
 	'AUTHOR'        => 'brian d foy <bdfoy@cpan.org>',
