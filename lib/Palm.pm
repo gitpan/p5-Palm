@@ -5,8 +5,6 @@
 #	Copyright (C) 1999, 2000, Andrew Arensburger.
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
-#
-# $Id: Palm.pm,v 1.1 2005/03/09 03:51:22 christophe Exp $
 
 use strict;
 use warnings;
@@ -14,7 +12,7 @@ package Palm;
 use vars qw( $VERSION );
 
 # One liner, to allow MakeMaker to work.
-$VERSION = do { my @r = (q$Revision: 1.1 $ =~ /\d+/g); sprintf "%d."."%02d" x $#r, @r };
+$VERSION = '1.009_01';
 
 =head1 NAME
 
@@ -76,9 +74,17 @@ sub mkpdbname {
 	return $name;
 }
 
+=head1 SOURCE CONTROL
+
+The source is in Github:
+
+	http://github.com/briandfoy/p5-Palm/tree/master
+	
 =head1 AUTHOR
 
-Andrew Arensburger E<lt>arensb@ooblick.comE<gt>
+Alessandro Zummo, C<< <a.zummo@towertech.it> >>
+
+Currently maintained by brian d foy, C<< <bdfoy@cpan.org> >>
 
 =head1 SEE ALSO
 

@@ -5,8 +5,6 @@
 #	Copyright (C) 1999, 2000, Andrew Arensburger.
 #	You may distribute this file under the terms of the Artistic
 #	License, as specified in the README file.
-#
-# $Id: StdAppInfo.pm,v 1.20 2004/07/07 02:36:16 christophe Exp $
 
 use strict;
 package Palm::StdAppInfo;
@@ -17,7 +15,7 @@ use vars qw( $VERSION @ISA $error );
 	# $error acts like $! in that it reports the error that occurred
 
 # One liner, to allow MakeMaker to work.
-$VERSION = do { my @r = (q$Revision: 1.20 $ =~ /\d+/g); sprintf "%d."."%02d" x $#r, @r };
+$VERSION = '1.009_01';
 
 @ISA = qw( Palm::Raw );
 
@@ -619,9 +617,17 @@ sub renameCategory
 1;
 __END__
 
+=head1 SOURCE CONTROL
+
+The source is in Github:
+
+	http://github.com/briandfoy/p5-Palm/tree/master
+	
 =head1 AUTHOR
 
-Andrew Arensburger E<lt>arensb@ooblick.comE<gt>
+Alessandro Zummo, C<< <a.zummo@towertech.it> >>
+
+Currently maintained by brian d foy, C<< <bdfoy@cpan.org> >>
 
 =head1 SEE ALSO
 
