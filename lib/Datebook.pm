@@ -14,7 +14,7 @@ use Palm::StdAppInfo();
 use vars qw( $VERSION @ISA );
 
 # One liner, to allow MakeMaker to work.
-$VERSION = '1.009_01';
+$VERSION = '1.009_02';
 
 @ISA = qw( Palm::StdAppInfo Palm::Raw );
 
@@ -539,17 +539,7 @@ sub ParseRecord
 		$record{location} = $location;
 	}
 
-  $record{other_data}= join ("\0", @fields) if @fields;
-
-	if ($have_location)
-	{
-		my $location;
-
-		$location = shift @fields;
-		$record{location} = $location;
-	}
-
-  $record{other_data}= join ("\0", @fields) if @fields;
+	$record{other_data}= join ("\0", @fields) if @fields;
 
 	delete $record{data};
 
