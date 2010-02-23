@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               p5-Palm
-version:            1.011_01
+version:            1.012
 abstract:           Module for handling PalmOS databases
 author:
     - brian d foy <bdfoy@cpan.org>
